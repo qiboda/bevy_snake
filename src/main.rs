@@ -2,10 +2,8 @@
 
 use bevy::{prelude::*, render::pass::ClearColor};
 
-use bevy::ecs::system::Command;
 use rand::prelude::random;
-use std::borrow::Borrow;
-use std::ops::{Deref, DerefMut};
+
 use std::time::Duration;
 
 const ARENA_WIDTH: u32 = 10;
@@ -50,11 +48,17 @@ fn main() {
         .add_startup_system_to_stage(StartupStage::PostStartup, snake_setup.system())
         .add_system(snake_timer.system())
         .add_system(food_spawner.system())
-        .add_system(snake_movement.system().label("ok"))
+        .add_system(snake_movement.system().label("snake_movement"))
         .add_system(size_scaling.system())
         .add_system(position_translation.system())
-        .add_system(snake_eating.system().label("eating").after("ok"))
+        .add_system(
+            snake_eating
+                .system()
+                .label("eating")
+                .after("snake_movement"),
+        )
         .add_system(snake_growth.system())
+        .add_system(game_over.system())
         .run();
 }
 
@@ -151,7 +155,7 @@ fn snake_movement(
             .0
             .iter()
             .map_while(|e| match positions.get_mut(*e) {
-                Ok(pos) => Some(*pos.deref()),
+                Ok(pos) => Some(*pos),
                 Err(_) => None,
             })
             .collect::<Vec<Position>>();
@@ -344,13 +348,13 @@ struct GameOverEvent;
 
 fn game_over(
     mut commands: Commands,
-    mut reader: EventReader<GameOverEvent>,
-    food_segment: Query<Entity, Or<(With<Food>, With<SnakeSegment>)>>,
-    mut snake_entities: ResMut<SnakeEntities>,
+    mut game_over_event: EventReader<GameOverEvent>,
+    food: Query<Entity, With<Food>>,
+    snake_entities: ResMut<SnakeEntities>,
     materials: Res<SnakeMaterials>,
 ) {
-    if reader.iter().next().is_some() {
-        for ent in food_segment.iter() {
+    if game_over_event.iter().next().is_some() {
+        for ent in food.iter().chain(snake_entities.0.clone()) {
             commands.entity(ent).despawn();
         }
         snake_setup(commands, snake_entities, materials);
