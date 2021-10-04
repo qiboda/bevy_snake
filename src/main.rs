@@ -1,10 +1,9 @@
 #![feature(iter_map_while)]
 
+use std::time::Duration;
 use bevy::{prelude::*, render::pass::ClearColor};
 
 use rand::prelude::random;
-
-use std::time::Duration;
 
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
@@ -118,12 +117,21 @@ struct SnakeMaterials {
     food_material: Handle<ColorMaterial>,
 }
 
+struct NextHeadDirection(SnakeMoveDirection);
+
+impl Default for NextHeadDirection {
+    fn default() -> Self {
+        NextHeadDirection(SnakeMoveDirection::Up)
+    }
+}
+
 fn snake_movement(
     keyboard_input: Res<Input<KeyCode>>,
     snake_timer: Res<SnakeMoveTimer>,
     snake_entities: Res<SnakeEntities>,
-    mut game_over_events: EventWriter<GameOverEvent>,
     mut last_tail_position: ResMut<LastTailPosition>,
+    mut game_over_events: EventWriter<GameOverEvent>,
+    mut next_direction: Local<NextHeadDirection>,
     mut heads: Query<(Entity, &mut SnakeHead)>,
     mut positions: Query<&mut Position, Or<(With<SnakeSegment>, With<SnakeHead>)>>,
 ) {
@@ -138,17 +146,19 @@ fn snake_movement(
         } else if keyboard_input.pressed(KeyCode::Right) {
             SnakeMoveDirection::Right
         } else {
-            head.direction
+            next_direction.0
         };
 
         if dir != head.direction.opposite() {
-            head.direction = dir;
+            next_direction.0 = dir;
         }
 
         // timer finished
         if !snake_timer.0.finished() {
             return;
         }
+
+        head.direction = next_direction.0;
 
         // update positions
         let snake_positions = snake_entities
